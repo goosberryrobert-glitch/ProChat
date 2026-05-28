@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Pro Chat</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+body{
+margin:0;
+font-family:Orbitron;
+background:#0b1020;
+color:white;
+overflow:hidden;
+}
+
+#lobby{
+position:fixed;
+inset:0;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+}
+
+input,button{
+padding:10px;
+margin:5px;
+border-radius:8px;
+border:none;
+font-family:Orbitron;
+box-sizing:border-box;
+}
+
+input{
+background:#111827;
+color:white;
+}
+
+button{
+background:#22c55e;
+color:white;
+cursor:pointer;
+}
+
+#chat{
+display:none;
+padding:10px;
+height:100vh;
+box-sizing:border-box;
+}
+
+#topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:10px;
+padding:10px;
+background:#111827;
+border-radius:10px;
+}
+
+#clock{color:#93c5fd;}
+#statusText{color:#22c55e;}
+
+#layout{
+display:flex;
+gap:10px;
+height:calc(100vh - 90px);
+}
+
+#users{
+width:180px;
+background:#111827;
+padding:10px;
+border-radius:10px;
+overflow:auto;
+flex-shrink:0;
+}
+
+#main{
+flex:1;
+display:flex;
+flex-direction:column;
+min-width:0;
+}
+
+#box{
+flex:1;
+overflow:auto;
+background:#111827;
+padding:10px;
+border-radius:10px;
+min-height:0;
+}
+
+.msg{
+margin:8px 0;
+padding:8px;
+background:#1f2937;
+border-radius:8px;
+word-wrap:break-word;
+cursor:pointer;
+}
+
+.replyBox{
+background:#111827;
+padding:6px;
+border-left:3px solid #22c55e;
+margin-bottom:6px;
+border-radius:6px;
+font-size:12px;
+}
+
+.replyBtn{
+margin-top:6px;
+background:#334155;
+padding:5px 8px;
+font-size:11px;
+border-radius:6px;
+display:inline-block;
+cursor:pointer;
+}
+
+#typing{
+margin-top:6px;
+font-size:12px;
+color:#93c5fd;
+height:16px;
+}
+
+#replyPreview{
+display:none;
+background:#111827;
+padding:8px;
+border-left:3px solid #22c55e;
+margin-top:8px;
+border-radius:6px;
+font-size:12px;
+position:relative;
+}
+
+#cancelReply{
+position:absolute;
+right:8px;
+top:8px;
+background:#ef4444;
+padding:4px 7px;
+border-radius:6px;
+font-size:10px;
+cursor:pointer;
+}
+
+#bottom{
+margin-top:10px;
+display:flex;
+gap:6px;
+align-items:center;
+flex-wrap:wrap;
+}
+
+#msg{
+flex:1;
+min-width:0;
+}
+
+#cooldown{
+min-width:38px;
+text-align:center;
+font-size:12px;
+font-weight:600;
+color:#93c5fd;
+background:#0f172a;
+border:1px solid #334155;
+border-radius:999px;
+padding:6px 8px;
+}
+
+#cooldown.ready{
+color:#22c55e;
+border-color:#22c55e;
+}
+
+/* ✅ ONLY CHANGE: image size fix */
+.msg img{
+max-width:220px;
+max-height:220px;
+width:auto;
+height:auto;
+border-radius:8px;
+margin-top:5px;
+display:block;
+object-fit:contain;
+}
+</style>
+</head>
+
+<body>
+
+<div id="lobby">
+<h2>💬 Pro Chat</h2>
+
+<input id="name" placeholder="Name">
+<input id="room" placeholder="Room code">
+
+<button onclick="createRoom()">Create Room</button>
+<button onclick="joinRoom()">Join Room</button>
+
+<p id="status"></p>
+</div>
+
+<div id="chat">
+
+<div id="topbar">
+<div id="clock">🕒 --:--:--</div>
+<div id="statusText">🟢 Online</div>
+</div>
+
+<div id="layout">
+
+<div id="users">
+<b>Online</b>
+<div id="userList"></div>
+</div>
+
+<div id="main">
+
+<div id="box"></div>
+
+<div id="typing"></div>
+
+<div id="replyPreview">
+<div id="cancelReply">✕</div>
+<div id="replyContent"></div>
+</div>
+
+<div id="bottom">
+
+<input id="msg" placeholder="Message">
+
+<div id="cooldown">0</div>
+
+<input type="file" id="imageInput">
+
+<button onclick="send()">Send</button>
+
+</div>
+
+</div>
+</div>
+</div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+getDatabase,
+ref,
+set,
+onValue,
+push,
+onDisconnect,
+remove
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig={
+apiKey:"AIzaSyD3PtIYTRguDeF8F-iwLzJxR8cj8zZ7zkg",
+authDomain:"bjv1-c032d.firebaseapp.com",
+databaseURL:"https://bjv1-c032d-default-rtdb.firebaseio.com",
+projectId:"bjv1-c032d",
+storageBucket:"bjv1-c032d.firebasestorage.app",
+messagingSenderId:"272066199959",
+appId:"1:272066199959:web:42de2ee662c5679a3d44d2"
+};
+
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
+
+let room="", name="";
+let userId=Math.random().toString(36).slice(2,10);
+let replyData=null;
+
+/* CLOCK */
+setInterval(()=>{
+document.getElementById("clock").innerText=
+"🕒 "+new Date().toLocaleTimeString();
+},1000);
+
+/* CREATE ROOM */
+window.createRoom=async()=>{
+
+room=Math.random().toString(36).slice(2,6).toUpperCase();
+
+await set(ref(db,"rooms/"+room),{
+messages:{},
+users:{},
+typing:{}
+});
+
+document.getElementById("room").value=room;
+document.getElementById("status").innerText="Room "+room;
+};
+
+/* JOIN */
+window.joinRoom=async()=>{
+
+room=document.getElementById("room").value.toUpperCase();
+name=document.getElementById("name").value||"Player";
+
+document.getElementById("lobby").style.display="none";
+document.getElementById("chat").style.display="block";
+
+const userRef=ref(db,"rooms/"+room+"/users/"+userId);
+const typingRef=ref(db,"rooms/"+room+"/typing/"+userId);
+
+set(userRef,{name});
+onDisconnect(userRef).remove();
+onDisconnect(typingRef).remove();
+
+listen();
+typingSystem();
+};
+
+/* LISTEN */
+function listen(){
+
+onValue(ref(db,"rooms/"+room+"/messages"),snap=>{
+
+let data=snap.val()||{};
+let html="";
+
+for(let k in data){
+let m=data[k];
+
+html+=`
+<div class="msg"
+onclick="window.__replyFromClick('${encodeURIComponent(JSON.stringify({
+name:m.name,
+text:m.text||"[Image]"
+}))}')">
+
+${m.replyName?`
+<div class="replyBox">
+<b>${m.replyName}</b><br>${m.replyText}
+</div>`:""}
+
+<b>${m.name}</b><br>
+${m.text||""}
+${m.image?`<img src="${m.image}">`:""}
+
+</div>`;
+}
+
+document.getElementById("box").innerHTML=html;
+document.getElementById("box").scrollTop=999999;
+});
+
+/* USERS */
+onValue(ref(db,"rooms/"+room+"/users"),snap=>{
+
+let data=snap.val()||{};
+let html="";
+let count=0;
+
+for(let k in data){
+html+=`🟢 ${data[k].name}<br>`;
+count++;
+}
+
+document.getElementById("userList").innerHTML=html;
+document.getElementById("statusText").innerText=`🟢 ${count} Online`;
+});
+}
+
+/* REPLY */
+window.__replyFromClick=(data)=>{
+
+replyData=JSON.parse(decodeURIComponent(data));
+
+document.getElementById("replyPreview").style.display="block";
+document.getElementById("replyContent").innerHTML=
+`<b>Replying to ${replyData.name}</b><br>${replyData.text}`;
+};
+
+/* CANCEL */
+document.getElementById("cancelReply").onclick=()=>{
+replyData=null;
+document.getElementById("replyPreview").style.display="none";
+document.getElementById("replyContent").innerHTML="";
+};
+
+/* TYPING */
+function typingSystem(){
+const typingRef=ref(db,"rooms/"+room+"/typing/"+userId);
+
+document.getElementById("msg").addEventListener("input",()=>{
+set(typingRef,{name});
+clearTimeout(window.t);
+window.t=setTimeout(()=>remove(typingRef),1000);
+});
+}
+
+/* COOLDOWN */
+let lastSend=0;
+const COOLDOWN=2000;
+
+setInterval(()=>{
+
+let now=Date.now();
+let diff=COOLDOWN-(now-lastSend);
+
+let el=document.getElementById("cooldown");
+
+if(diff<=0){
+el.innerText="✓";
+el.classList.add("ready");
+return;
+}
+
+el.classList.remove("ready");
+el.innerText=Math.ceil(diff/1000);
+
+},100);
+
+/* SEND */
+window.send=async()=>{
+
+let now=Date.now();
+if(now-lastSend < COOLDOWN) return;
+
+lastSend=now;
+
+let text=document.getElementById("msg").value;
+let file=document.getElementById("imageInput").files[0];
+
+if(!text && !file) return;
+
+let img="";
+
+if(file){
+img=await new Promise(res=>{
+let r=new FileReader();
+r.onload=e=>res(e.target.result);
+r.readAsDataURL(file);
+});
+}
+
+await push(ref(db,"rooms/"+room+"/messages"),{
+name,text,image:img,
+replyName:replyData?.name||"",
+replyText:replyData?.text||""
+});
+
+document.getElementById("msg").value="";
+document.getElementById("imageInput").value="";
+replyData=null;
+};
+
+/* ENTER KEY */
+document.addEventListener("keydown",(e)=>{
+
+const msgBox=document.getElementById("msg");
+if(document.activeElement!==msgBox) return;
+
+if(e.key==="Enter"){
+e.preventDefault();
+send();
+}
+});
+/* 🚫 CLEAN ANTI-SPAM (DOES NOT BREAK TYPING) */
+
+const msgBox=document.getElementById("msg");
+
+/* block paste only (optional but safe) */
+msgBox.addEventListener("paste",(e)=>{
+e.preventDefault();
+});
+
+/* optional: block copy (doesn't affect typing) */
+msgBox.addEventListener("copy",(e)=>{
+e.preventDefault();
+});
+
+/* REAL ANTI-SPAM = send cooldown lock */
+let sendLock=false;
+
+function triggerSendLock(){
+sendLock=true;
+setTimeout(()=>sendLock=false,800); // prevents message spam bursts
+}
+
+/* hook into send */
+const oldSend=window.send;
+window.send=async function(){
+if(sendLock) return;
+triggerSendLock();
+return oldSend.apply(this,arguments);
+};
+</script>
+
+</body>
+</html>
+
+
+
+
