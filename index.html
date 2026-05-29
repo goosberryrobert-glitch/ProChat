@@ -64,6 +64,9 @@ border-radius:10px;
 #clock{color:#93c5fd;}
 #statusText{color:#22c55e;}
 
+/* ✅ ADDED ONLY */
+#roomCode{color:#fbbf24;}
+
 #layout{
 display:flex;
 gap:10px;
@@ -182,7 +185,6 @@ color:#22c55e;
 border-color:#22c55e;
 }
 
-/* ✅ ONLY CHANGE: image size fix */
 .msg img{
 max-width:220px;
 max-height:220px;
@@ -215,6 +217,9 @@ object-fit:contain;
 <div id="topbar">
 <div id="clock">🕒 --:--:--</div>
 <div id="statusText">🟢 Online</div>
+
+<!-- ✅ ADDED ONLY -->
+<div id="roomCode">🔑 ----</div>
 </div>
 
 <div id="layout">
@@ -310,6 +315,9 @@ name=document.getElementById("name").value||"Player";
 document.getElementById("lobby").style.display="none";
 document.getElementById("chat").style.display="block";
 
+/* ✅ ADDED ONLY */
+document.getElementById("roomCode").innerText="🔑 Room: "+room;
+
 const userRef=ref(db,"rooms/"+room+"/users/"+userId);
 const typingRef=ref(db,"rooms/"+room+"/typing/"+userId);
 
@@ -319,6 +327,9 @@ onDisconnect(typingRef).remove();
 
 listen();
 typingSystem();
+
+/* ✅ ADDED ONLY */
+typingDisplay();
 };
 
 /* LISTEN */
@@ -400,6 +411,26 @@ window.t=setTimeout(()=>remove(typingRef),1000);
 });
 }
 
+/* ✅ ADDED ONLY: LIVE TYPING DISPLAY */
+function typingDisplay(){
+
+onValue(ref(db,"rooms/"+room+"/typing"),snap=>{
+
+let data=snap.val()||{};
+let list=[];
+
+for(let k in data){
+if(k!==userId && data[k]?.name){
+list.push(data[k].name);
+}
+}
+
+document.getElementById("typing").innerText=
+list.length ? (list.join(", ") + " typing...") : "";
+
+});
+}
+
 /* COOLDOWN */
 let lastSend=0;
 const COOLDOWN=2000;
@@ -467,40 +498,35 @@ e.preventDefault();
 send();
 }
 });
-/* 🚫 CLEAN ANTI-SPAM (DOES NOT BREAK TYPING) */
 
+/* ANTI-SPAM */
 const msgBox=document.getElementById("msg");
 
-/* block paste only (optional but safe) */
 msgBox.addEventListener("paste",(e)=>{
 e.preventDefault();
 });
 
-/* optional: block copy (doesn't affect typing) */
 msgBox.addEventListener("copy",(e)=>{
 e.preventDefault();
 });
 
-/* REAL ANTI-SPAM = send cooldown lock */
 let sendLock=false;
 
 function triggerSendLock(){
 sendLock=true;
-setTimeout(()=>sendLock=false,800); // prevents message spam bursts
+setTimeout(()=>sendLock=false,800);
 }
 
-/* hook into send */
 const oldSend=window.send;
 window.send=async function(){
 if(sendLock) return;
 triggerSendLock();
 return oldSend.apply(this,arguments);
 };
+
 </script>
 
 </body>
 </html>
-
-
 
 
